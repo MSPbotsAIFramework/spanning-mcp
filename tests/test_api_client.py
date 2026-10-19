@@ -103,6 +103,23 @@ async def test_region_is_detected_and_cached():
     assert len(rec.requests) == probes + 2
 
 
+async def test_expired_region_is_probed_again(monkeypatch):
+    def route(request: httpx.Request) -> httpx.Response:
+        ok = request.url.host == "o365-api-eu.spanningbackup.com"
+        return httpx.Response(200 if ok else 401, json={"status": "paid"})
+
+    rec = Recorder({"tenant": route})
+    creds = SpanningCredentials(admin_email="admin@example.com", api_token="token-123")
+    await _client(rec, creds).get("tenant")
+    first = len(rec.requests)
+    monkeypatch.setattr(api_client, "_REGION_CACHE_TTL_SECONDS", -1)
+    api_client.clear_region_cache()
+    await _client(rec, creds).get("tenant")  # stored already expired
+    second = len(rec.requests)
+    await _client(rec, creds).get("tenant")  # expired entry -> probes every region again
+    assert len(rec.requests) - second == first
+
+
 async def test_no_region_accepts_the_credentials(monkeypatch):
     rec = Recorder(default=lambda r: httpx.Response(401, json={"message": "Unauthorized"}))
     creds = SpanningCredentials(admin_email="admin@example.com", api_token="token-123")
@@ -240,3 +257,10 @@ async def test_error_message_from_api():
     with pytest.raises(SpanningError) as err:
         await _client(rec).get("tenant")
     assert err.value.status_code == 404 and "User not found" in err.value.message
+
+
+@pytest.mark.parametrize("limit,sent", [(None, "50"), (1000, "200")])
+async def test_list_users_page_size_default_and_cap(monkeypatch, limit, sent):
+    rec = Recorder({"users": {"users": []}})
+    await _call(monkeypatch, rec, "spanning_list_users", {"limit": limit} if limit else {})
+    assert rec.requests[0].url.params["size"] == sent

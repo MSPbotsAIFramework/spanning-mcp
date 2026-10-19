@@ -52,8 +52,10 @@ def _get_shared_http_client() -> httpx.AsyncClient:
 # Which region an account answers in (sha256 of email + token -> region code).
 # Holds no credential and nothing that can be turned back into one; it only
 # saves re-probing every region on each request.
-_region_cache: "OrderedDict[str, str]" = OrderedDict()
+_region_cache: "OrderedDict[str, tuple[str, float]]" = OrderedDict()
 _REGION_CACHE_SIZE = 500
+# Re-probe after a day, in case the account was moved to another region.
+_REGION_CACHE_TTL_SECONDS = 24 * 3600
 
 
 def clear_region_cache() -> None:
@@ -139,9 +141,9 @@ class SpanningClient:
             return self.region
         key = self._cache_key()
         cached = _region_cache.get(key)
-        if cached:
-            self.region = cached
-            return cached
+        if cached and cached[1] > time.monotonic():
+            self.region = cached[0]
+            return cached[0]
 
         async def probe(region: str) -> str | None:
             url = f"{API_URL_TEMPLATE.format(region=region)}/{PROBE_PATH}"
@@ -161,7 +163,7 @@ class SpanningClient:
                 "No Spanning region accepted this admin email and API token. Check both (the token must belong to "
                 "that admin), or send X-Spanning-Region (us, eu, uk, ca, ap, af).",
             )
-        _region_cache[key] = found
+        _region_cache[key] = (found, time.monotonic() + _REGION_CACHE_TTL_SECONDS)
         _region_cache.move_to_end(key)
         while len(_region_cache) > _REGION_CACHE_SIZE:
             _region_cache.popitem(last=False)

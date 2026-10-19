@@ -46,7 +46,7 @@ user principal name. Backup results are per day and per service type and count o
 |---|---|---|
 | `spanning_status` | Check the connection: credentials work, region, platform, tenant state | - |
 | `spanning_get_license_usage` | Purchased standard / archive licenses vs assigned users and shared mailboxes | - |
-| `spanning_list_users` | Tenant users and whether each is licensed (assigned) for backup | limit (default 100, max 1000), assignedOnly, includeBackupSummary, pageToken |
+| `spanning_list_users` | Tenant users and whether each is licensed (assigned) for backup | limit (default 50, max 200; larger values are capped), assignedOnly, includeBackupSummary, pageToken |
 | `spanning_get_user` | One user's license state and today's backup results | **userId** |
 | `spanning_list_services` | Services backed up for a user with the latest result of each (last 7 days) | **userId** |
 | `spanning_list_backups` | A user's daily backup results for one service, newest first | **userId**, **service** (`mail`, `drive`, `calendar`, `contacts`, `sites`, `teams`), days (default 7, max 30: the API limit) |

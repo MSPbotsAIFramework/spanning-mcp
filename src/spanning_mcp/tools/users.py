@@ -57,7 +57,7 @@ def _offsets(token: str | None) -> dict[str, str]:
 def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
     @mcp.tool(annotations=READ_ONLY)
     async def spanning_list_users(
-        limit: Annotated[int | None, Field(description="Users per page (default 100, max 1000).", ge=1, le=1000)] = None,
+        limit: Annotated[int | None, Field(description="Users per page (default 50, max 200; larger values are capped).", ge=1, le=1000)] = None,
         assignedOnly: Annotated[bool | None, Field(description="Only users with a Spanning backup license.")] = None,
         includeBackupSummary: Annotated[bool | None, Field(description="Add today's backup results per user (bigger output).")] = None,
         pageToken: Annotated[str | None, Field(description="next_page_token from the previous page.")] = None,
@@ -65,7 +65,7 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
         """List the tenant's Microsoft 365 users and whether each is licensed (assigned) for backup."""
 
         async def action(client: SpanningClient) -> dict:
-            params = {"size": limit or 100, "status": bool(includeBackupSummary), **_offsets(pageToken)}
+            params = {"size": min(limit or 50, 200), "status": bool(includeBackupSummary), **_offsets(pageToken)}
             payload = await client.get("users", params) or {}
             users = [u for u in payload.get("users") or [] if isinstance(u, dict)] if isinstance(payload, dict) else []
             if assignedOnly:
