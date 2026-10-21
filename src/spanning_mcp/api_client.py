@@ -102,6 +102,9 @@ class SpanningCredentials:
     api_token: str
     platform: str = "m365"
     region: str | None = None
+    # Set when a header value is malformed: tools then return invalid_argument
+    # instead of calling Spanning, while tools/list still works.
+    header_error: str | None = None
 
     def __repr__(self) -> str:  # never leak the token into logs or tracebacks
         return (
@@ -116,6 +119,7 @@ class SpanningClient:
     def __init__(self, credentials: SpanningCredentials, http_client: httpx.AsyncClient | None = None):
         self._credentials = credentials
         self._http = http_client
+        self.header_error = credentials.header_error
         self.region = credentials.region
 
     @property

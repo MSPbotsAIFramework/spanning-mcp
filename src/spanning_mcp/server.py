@@ -97,7 +97,9 @@ def normalize_region(value: str) -> str | None:
 class GatewayCredentialsMiddleware:
     """Reads the Spanning headers on /mcp requests into the request context.
 
-    Needs X-Spanning-API-Token and X-Spanning-Admin-Email; otherwise 401.
+    Needs X-Spanning-API-Token and X-Spanning-Admin-Email; otherwise 401. A
+    malformed email, platform or region does not block the request (tools/list
+    must work with any values); tools report it instead.
     """
 
     def __init__(self, app: ASGIApp):
@@ -130,19 +132,20 @@ class GatewayCredentialsMiddleware:
         platform = normalize_platform(header(HEADER_PLATFORM))
         region_raw = header(HEADER_REGION)
         region = normalize_region(region_raw) if region_raw else None
-        problem = None
+        problems = []
         if not _EMAIL.match(email or ""):
-            problem = f"{HEADER_ADMIN_EMAIL} must be an email address"
-        elif platform is None:
-            problem = f"{HEADER_PLATFORM} must be m365 (o365), gws (gapps) or salesforce"
-        elif region_raw and not region:
-            problem = f"{HEADER_REGION} must be one of {', '.join(REGIONS)}"
-        if problem:
-            await JSONResponse({"error": "Invalid header", "message": problem}, status_code=400)(scope, receive, send)
-            return
+            problems.append(f"{HEADER_ADMIN_EMAIL} must be an email address")
+        if platform is None:
+            problems.append(f"{HEADER_PLATFORM} must be m365 (o365), gws (gapps) or salesforce")
+        if region_raw and not region:
+            problems.append(f"{HEADER_REGION} must be one of {', '.join(REGIONS)}")
 
         credentials = SpanningCredentials(
-            admin_email=email or "", api_token=token or "", platform=platform or "m365", region=region
+            admin_email=email or "",
+            api_token=token or "",
+            platform=platform or "m365",
+            region=region,
+            header_error="; ".join(problems) or None,
         )
         request_id = (request.headers.get("x-request-id") or "").strip()[:64] or uuid.uuid4().hex[:12]
         creds_token = _credentials_var.set(credentials)

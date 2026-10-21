@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Credential middleware: 401/400 on bad headers, per-request isolation."""
+"""Credential middleware: 401 on missing headers, deferred format errors, per-request isolation."""
 
 import asyncio
 
@@ -61,10 +61,22 @@ def test_each_required_header_is_required(drop):
         {"X-Spanning-Region": "mars"},
     ],
 )
-def test_bad_values_return_400(extra):
+def test_bad_values_are_reported_by_tools(extra):
+    call = {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "spanning_status", "arguments": {}}}
     with _client() as client:
-        resp = client.post("/mcp", json=LIST_TOOLS, headers=MCP_HEADERS | CREDS | extra)
-    assert resp.status_code == 400
+        resp = client.post("/mcp", json=call, headers=MCP_HEADERS | CREDS | extra)
+    assert resp.status_code == 200
+    assert '\\"invalid_argument\\"' in resp.text
+    assert f"{next(iter(extra))} must be" in resp.text
+
+
+def test_placeholder_headers_still_list_tools():
+    # The admin console refreshes the tool catalog with placeholder header values.
+    names = ("X-Spanning-API-Token", "X-Spanning-Admin-Email", "X-Spanning-Platform", "X-Spanning-Region")
+    with _client() as client:
+        resp = client.post("/mcp", json=LIST_TOOLS, headers=MCP_HEADERS | {name: "placeholder" for name in names})
+    assert resp.status_code == 200
+    assert "spanning_list_users" in resp.text
 
 
 def test_tools_list_over_http():

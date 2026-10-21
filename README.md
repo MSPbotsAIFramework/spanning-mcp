@@ -33,8 +33,9 @@ Where to get them:
 How credentials are sent to Spanning: HTTP Basic authentication (admin email as user name,
 API token as password) to `https://o365-api-{region}.spanningbackup.com/external/...`.
 
-A request to `/mcp` without the two required headers gets HTTP 401 naming the missing ones; an
-invalid email, platform or region gets HTTP 400.
+A request to `/mcp` without the two required headers gets HTTP 401 naming the missing ones. An
+invalid email, platform or region does not block the request (so `tools/list` works with any
+values); tools that call Spanning then return an `invalid_argument` error naming the header.
 
 ## Tools
 
